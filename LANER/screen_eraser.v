@@ -1,22 +1,12 @@
 `default_nettype none
-/*
- * SCREEN_ERASER.V
- * 
- * Erases only the 5 lane areas to black when enabled.
- * This module:
- * - Activates when enable signal goes high
- * - Erases ONLY the 5 lanes (60px wide each) to black
- * - Skips the 20px gaps between lanes to preserve background
- * - Takes priority over all other rendering during erase
- * - Ensures clean slate before game starts or before end screens
- */
+
 module screen_eraser(
-    input wire Resetn,              // Active low reset
+    input wire Resetn,      
     input wire Clock,
-    input wire enable,              // Start erasing when this goes high
+    input wire enable,         
     
     // Erase control outputs
-    output reg erase_active,        // High when erasing screen
+    output reg erase_active,     
     output wire [9:0] erase_x,
     output wire [8:0] erase_y,
     output wire [8:0] erase_color,
@@ -28,16 +18,14 @@ module screen_eraser(
     
     // Lane configuration
     parameter NUM_LANES = 5;
-    parameter LANE_WIDTH = 80;      // Total width per lane (60px playable + gaps)
+    parameter LANE_WIDTH = 80;      
     parameter LANE_START_X = 120;
     parameter PLAYABLE_WIDTH = 60;  // Only erase the 60px playable area
     parameter GAP_SIZE = 20;        // 20px gap (10px on each side)
     
-    // Erase area Y-range
     parameter ERASE_START_Y = 0;
     parameter ERASE_END_Y = 479;
     
-    // Erase color (black)
     parameter BLACK = 9'b000_000_000;
     
     // States
@@ -51,18 +39,14 @@ module screen_eraser(
     reg [2:0] current_lane;
     
     // Position within current lane
-    reg [5:0] lane_pixel_x;  // 0-59 (60 pixels wide)
+    reg [5:0] lane_pixel_x; 
     reg [8:0] erase_y_reg;
     
-    // Output registers
     reg [9:0] erase_x_reg;
     reg erase_write_reg;
     
-    // Previous enable state for edge detection
     reg prev_enable;
     wire enable_trigger;
-    
-    // Detect rising edge of enable (start erase request)
     assign enable_trigger = !prev_enable && enable;
     
     // Calculate actual X position from lane and pixel offset
@@ -102,7 +86,6 @@ module screen_eraser(
                 end
                 
                 ERASING: begin
-                    // Calculate absolute X position
                     erase_x_reg <= lane_start_x + lane_pixel_x;
                     erase_write_reg <= 1;
                     
@@ -137,7 +120,6 @@ module screen_eraser(
                 end
                 
                 DONE: begin
-                    // Return to idle when enable is deasserted
                     erase_active <= 0;
                     erase_write_reg <= 0;
                     if (!enable) begin

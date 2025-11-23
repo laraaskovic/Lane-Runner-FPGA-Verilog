@@ -1,21 +1,13 @@
 `default_nettype none
-/*
- * SCREEN_ERASER.V
- * 
- * Erases only the 5 lane areas to black when reset is released.
- * This module:
- * - Detects when reset is released (Resetn goes from 0 to 1)
- * - Erases ONLY the 5 lanes (60px wide each) to black
- * - Skips the 20px gaps between lanes to preserve background
- * - Takes priority over all other rendering during erase
- * - Ensures clean slate before game starts
- */
+
+// NOT IN USE
+
 module screen_eraser(
-    input wire Resetn,              // Active low reset
+    input wire Resetn,            
     input wire Clock,
     
     // Erase control outputs
-    output reg erase_active,        // High when erasing screen
+    output reg erase_active,     
     output wire [9:0] erase_x,
     output wire [8:0] erase_y,
     output wire [8:0] erase_color,
@@ -27,7 +19,7 @@ module screen_eraser(
     
     // Lane configuration
     parameter NUM_LANES = 5;
-    parameter LANE_WIDTH = 80;      // Total width per lane (60px playable + gaps)
+    parameter LANE_WIDTH = 80;     
     parameter LANE_START_X = 120;
     parameter PLAYABLE_WIDTH = 60;  // Only erase the 60px playable area
     parameter GAP_SIZE = 20;        // 20px gap (10px on each side)
@@ -36,7 +28,6 @@ module screen_eraser(
     parameter ERASE_START_Y = 0;
     parameter ERASE_END_Y = 479;
     
-    // Erase color (black)
     parameter BLACK = 9'b000_000_000;
     
     // States
@@ -61,7 +52,6 @@ module screen_eraser(
     reg prev_resetn;
     wire reset_released;
     
-    // Detect rising edge of Resetn (reset released)
     assign reset_released = !prev_resetn && Resetn;
     
     // Calculate actual X position from lane and pixel offset
@@ -97,7 +87,6 @@ module screen_eraser(
                 end
                 
                 ERASING: begin
-                    // Calculate absolute X position
                     erase_x_reg <= lane_start_x + lane_pixel_x;
                     erase_write_reg <= 1;
                     

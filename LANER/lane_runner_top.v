@@ -1,3 +1,12 @@
+/*   General Description of the entire game logic
+ *   1. Power On -> Reset Erase -> Title Screen
+ *   2. Press KEY[3] -> Start Game
+ *   3. Gameplay -> Dodge obstacles, score points
+ *   4. Game End -> Win (score=333) or Lose (lives=0)
+ *   5. End Screen Erase -> Show Win/Lose Screen
+ *   6. Press KEY[2] -> Manual clear -> Ready to restart
+ */
+
 `default_nettype none
 
 module lane_runner_top(
@@ -21,9 +30,9 @@ module lane_runner_top(
     output wire VGA_CLK
 );
     // VGA Parameters
-    parameter nX = 10;
-    parameter nY = 9;
-    parameter COLOR_DEPTH = 9;
+    parameter nX = 10; //640 px
+    parameter nY = 9; //480 px
+    parameter COLOR_DEPTH = 9;  //3-3-3
     
     wire Resetn;
     wire move_left_key, move_right_key;
@@ -32,16 +41,17 @@ module lane_runner_top(
     wire start_game_key;
     wire restart_key;
 
-    
-assign Resetn = SW[9];  
-assign start_game_key = ~KEY[3];
-assign restart_key = ~KEY[2];  // NEW: Add this line (or use KEY[3] if you prefer)
-assign move_left = move_left_key | move_left_kb;
-assign move_right = move_right_key | move_right_kb;
+    assign Resetn = SW[9];  
+    assign start_game_key = ~KEY[3]; //initial start from title screen
+    assign restart_key = ~KEY[2];
+
+    //either the keyboard or keys
+    assign move_left = move_left_key | move_left_kb; 
+    assign move_right = move_right_key | move_right_kb;
 
     // Player Signals
-    wire [2:0] player_lane;
-    wire [nX-1:0] player_x;
+    wire [2:0] player_lane; //lane in binary
+    wire [nX-1:0] player_x; //nX used as a parameter
     wire [nY-1:0] player_y;
     wire [COLOR_DEPTH-1:0] player_color;
     wire player_write;
@@ -51,15 +61,14 @@ assign move_right = move_right_key | move_right_kb;
     wire [nY-1:0] obs_y;
     wire [COLOR_DEPTH-1:0] obs_color;
     wire obs_write;
+
     wire collision;
     wire game_over;
     wire [1:0] lives;
     wire score_increment;
     wire clear_score; 
-    
-    // Score Signals
     wire [9:0] score;
-    wire win_condition;
+    wire win_condition; 
     assign win_condition = (score == 10'd333);  // Win when score reaches 333
     
     // Title Screen Signals
@@ -87,8 +96,8 @@ assign move_right = move_right_key | move_right_kb;
     wire win_write;
     
     // PS/2 Signals
-    wire [7:0] ps2_key_data;
-    wire ps2_key_pressed;
+    wire [7:0] ps2_key_data; //8 bit scan from keyboard
+    wire ps2_key_pressed; 
 
     // Screen Eraser Signals
     wire erase_active;
@@ -107,50 +116,51 @@ assign move_right = move_right_key | move_right_kb;
     reg erase_for_endscreen;
     wire endscreen_trigger;
 
-    // Manual Clear Signals
-    wire manual_clear_key;      // Synced KEY[2]
-    reg manual_clear_prev;      // Edge detection for KEY[2]
+    wire manual_clear_key;     
+    reg manual_clear_prev;     
     wire manual_clear_trigger;  // Pulse when button pressed
     reg erase_for_manual;       // Trigger flag for eraser
     reg suppress_endscreen;     // Flag to hide text after erasing
 
     assign reset_rising_edge = Resetn & ~resetn_prev;
+
+    //lose or win screen
     assign endscreen_trigger = ((game_over & ~game_over_prev) | (win_condition & ~win_condition_prev)) & title_complete;
     
-    // Manual trigger logic (Rising edge of KEY[2])
     assign manual_clear_trigger = manual_clear_key & ~manual_clear_prev;
 
     // Track previous values for edge detection and handle states
     always @(posedge CLOCK_50) begin
-        if (!Resetn) begin
+        if (!Resetn) 
+        begin
             resetn_prev <= 0;
             game_over_prev <= 0;
             win_condition_prev <= 0;
             erase_for_reset <= 0;
             erase_for_endscreen <= 0;
             
-            // Reset manual control signals
             manual_clear_prev <= 0;
             erase_for_manual <= 0;
             suppress_endscreen <= 0;
         end
-        else begin
+        else 
+        begin
             resetn_prev <= Resetn;
             game_over_prev <= game_over;
             win_condition_prev <= win_condition;
-            manual_clear_prev <= manual_clear_key; // Update manual key history
+            manual_clear_prev <= manual_clear_key;
             
-            // Set erase flag when reset goes high (SW[9] activated)
-            if (reset_rising_edge) begin
+            if (reset_rising_edge) 
+            begin
                 erase_for_reset <= 1;
-                suppress_endscreen <= 0; // Reset suppression so game works normally
+                suppress_endscreen <= 0;
             end
-            // Clear reset erase flag when erase is complete
-            else if (erase_for_reset & ~erase_active) begin
+            else if (erase_for_reset & ~erase_active) 
+            begin
                 erase_for_reset <= 0;
             end
             
-            // Set erase flag when endscreen is triggered (only if not resetting)
+            // When game ends (lose or win), erase before showing end screen
             if (endscreen_trigger & ~erase_for_reset) begin
                 erase_for_endscreen <= 1;
             end
@@ -159,13 +169,13 @@ assign move_right = move_right_key | move_right_kb;
                 erase_for_endscreen <= 0;
             end
 
-            // Manual Clear Logic
-            // If button pressed AND game is over/won, trigger erase and suppress text
-            if (manual_clear_trigger && (game_over || win_condition)) begin
+            //Key 2 reset logic for after 1 iteration of the game
+
+            if (manual_clear_trigger && (game_over || win_condition)) 
+            begin
                 erase_for_manual <= 1;
                 suppress_endscreen <= 1;
             end
-            // Clear manual erase flag when erase is complete
             else if (erase_for_manual & ~erase_active) begin
                 erase_for_manual <= 0;
             end

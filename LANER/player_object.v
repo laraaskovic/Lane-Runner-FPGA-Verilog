@@ -1,12 +1,3 @@
-/*
- * PLAYER_OBJECT.V with ROM Image Support
- *
- * - Draws player from ROM images
- * - Normal image when not in collision
- * - Invincible image when in collision mode (2 seconds)
- * - Continuously redraws during collision to maintain priority
- */
-
 `default_nettype none
 
 module player_object(
@@ -71,11 +62,11 @@ module player_object(
     // Collision state tracking
     reg collision_prev;
     reg in_collision_mode;
-    reg in_collision_mode_prev;  // Track previous collision mode state
+    reg in_collision_mode_prev;  
     reg [26:0] collision_timer;
     reg [22:0] redraw_counter;
     
-    // ROM interface for player images
+    // ROM 
     wire [11:0] rom_address;
     wire [8:0] rom_data_normal;      // Normal player image
     wire [8:0] rom_data_invincible;  // Invincible player image
@@ -100,6 +91,7 @@ module player_object(
         .q(rom_data_invincible)
     );
    
+   //same function as before used to determine the pixel coordinate for hte lanes
     function [nX-1:0] lane_to_x;
         input [2:0] lane;
         begin
@@ -109,7 +101,8 @@ module player_object(
     endfunction
 
     always @(posedge Clock) begin
-        if (!Resetn) begin
+        if (!Resetn) 
+        begin
             state <= INIT;
             next_state_after_draw <= IDLE;
             player_lane <= 3'd2;
@@ -128,30 +121,34 @@ module player_object(
             collision_timer <= 0;
             redraw_counter <= 0;
         end
-        else begin
-            // Collision edge detection
+        else 
+        begin
             collision_prev <= collision;
-            if (collision && !collision_prev) begin
+            if (collision && !collision_prev) 
+            begin
                 in_collision_mode <= 1;
                 collision_timer <= 0;
                 redraw_counter <= 0;
             end
             
-            // Track previous collision mode state
             in_collision_mode_prev <= in_collision_mode;
             
             // Update collision timer
-            if (in_collision_mode) begin
-                if (collision_timer < COLLISION_DURATION) begin
+            if (in_collision_mode) 
+            begin
+                if (collision_timer < COLLISION_DURATION) 
+                begin
                     collision_timer <= collision_timer + 1;
-                end else begin
+                end else 
+                begin
                     in_collision_mode <= 0;
                     collision_timer <= 0;
                 end
             end
             
             case (state)
-                INIT: begin
+                INIT: 
+                begin
                     player_x_pos <= lane_to_x(player_lane);
                     prev_x_pos <= lane_to_x(player_lane);
                     pixel_x <= 0;
@@ -161,19 +158,23 @@ module player_object(
                     state <= DRAW_INITIAL;
                 end
 
-                DRAW_INITIAL: begin
+                DRAW_INITIAL: 
+                begin
                     vga_x_reg <= player_x_pos + pixel_x;
                     vga_y_reg <= PLAYER_Y_POS + pixel_y;
                     vga_color_reg <= selected_rom_data;  // Use ROM data
                     vga_write_reg <= 1;
                    
+                   //used as like a for loop
                     if (pixel_x < PLAYER_WIDTH - 1)
                         pixel_x <= pixel_x + 1;
-                    else begin
+                    else 
+                    begin
                         pixel_x <= 0;
                         if (pixel_y < PLAYER_HEIGHT - 1)
                             pixel_y <= pixel_y + 1;
-                        else begin
+                        else 
+                        begin
                             pixel_y <= 0;
                             vga_write_reg <= 0;
                             state <= next_state_after_draw;
@@ -181,20 +182,25 @@ module player_object(
                     end
                 end
 
-                IDLE: begin
+                IDLE: 
+                begin
                     vga_write_reg <= 0;
                     
-                    // Detect when collision mode ends - trigger immediate redraw to normal color
-                    if (in_collision_mode_prev && !in_collision_mode) begin
+                    // Detect when collision mode ends trigger immediate redraw to normal color
+                    if (in_collision_mode_prev && !in_collision_mode) 
+                    begin
                         pixel_x <= 0;
                         pixel_y <= 0;
                         next_state_after_draw <= IDLE;
                         state <= DRAW;
                     end
                     // Redraw during collision mode
-                    else if (in_collision_mode) begin
+                    else if (in_collision_mode) 
+                    begin
                         redraw_counter <= redraw_counter + 1;
-                        if (redraw_counter >= REDRAW_INTERVAL) begin
+
+                        if (redraw_counter >= REDRAW_INTERVAL) 
+                        begin
                             redraw_counter <= 0;
                             pixel_x <= 0;
                             pixel_y <= 0;
@@ -204,8 +210,10 @@ module player_object(
                     end
                     
                     // Movement always allowed
-                    if (!input_handled) begin
-                        if (move_left && player_lane > 0) begin
+                    if (!input_handled) 
+                    begin
+                        if (move_left && player_lane > 0) 
+                        begin
                             prev_x_pos <= player_x_pos;
                             player_lane <= player_lane - 1;
                             player_x_pos <= lane_to_x(player_lane - 1);
@@ -215,7 +223,8 @@ module player_object(
                             next_state_after_draw <= IDLE;
                             state <= ERASE;
                         end
-                        else if (move_right && player_lane < NUM_LANES - 1) begin
+                        else if (move_right && player_lane < NUM_LANES - 1) 
+                        begin
                             prev_x_pos <= player_x_pos;
                             player_lane <= player_lane + 1;
                             player_x_pos <= lane_to_x(player_lane + 1);
@@ -239,11 +248,14 @@ module player_object(
                    
                     if (pixel_x < PLAYER_WIDTH - 1)
                         pixel_x <= pixel_x + 1;
-                    else begin
+                    else 
+                    begin
                         pixel_x <= 0;
+
                         if (pixel_y < PLAYER_HEIGHT - 1)
                             pixel_y <= pixel_y + 1;
-                        else begin
+                        else 
+                        begin
                             pixel_y <= 0;
                             vga_write_reg <= 0;
                             state <= DRAW;
@@ -251,7 +263,8 @@ module player_object(
                     end
                 end
 
-                DRAW: begin
+                DRAW: 
+                begin
                     vga_x_reg <= player_x_pos + pixel_x;
                     vga_y_reg <= PLAYER_Y_POS + pixel_y;
                     vga_color_reg <= selected_rom_data;  // Use ROM data
@@ -271,7 +284,8 @@ module player_object(
                     end
                 end
 
-                COLLISION_REDRAW: begin
+                COLLISION_REDRAW: 
+                begin
                     vga_x_reg <= player_x_pos + pixel_x;
                     vga_y_reg <= PLAYER_Y_POS + pixel_y;
                     vga_color_reg <= selected_rom_data;  // Use invincible ROM

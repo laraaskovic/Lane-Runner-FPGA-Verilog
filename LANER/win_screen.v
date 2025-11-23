@@ -1,31 +1,24 @@
 `default_nettype none
 
-/*
- * WIN_SCREEN.V
- * 
- * Displays "U_WIN" vertically in 5 lanes when player wins (score = 999)
- * - U, _, W, I, N - one character per lane
- * - Controlled by master FSM via 'enable' signal
- * - Signals 'complete' when done drawing
- */
-
+//Displays "U_WIN" vertically in 5 lanes when player wins (score = 333)
+ 
 module win_screen(
     input wire Resetn,
     input wire Clock,
     input wire enable,              // Enable from master FSM
-    output reg showing,             // High when actively drawing
-    output reg complete,            // High when drawing is complete
+    output reg showing,          
+    output reg complete,      
     output wire [9:0] VGA_x,
     output wire [8:0] VGA_y,
     output wire [8:0] VGA_color,
     output wire VGA_write
 );
 
-    // VGA parameters
+    // VGA
     parameter XSCREEN = 640;
     parameter YSCREEN = 480;
     
-    // Lane configuration
+    // Lanes
     parameter NUM_LANES = 5;
     parameter LANE_WIDTH = 80;
     parameter LANE_START_X = 120;
@@ -84,7 +77,6 @@ module win_screen(
     assign letter_x = get_letter_x(current_letter);
     assign letter_y = get_letter_y(current_letter);
     
-    // Letter patterns for "U_WIN" (5x7 grid scaled to 40x50)
     function is_letter_pixel;
         input [3:0] letter;
         input [5:0] px;

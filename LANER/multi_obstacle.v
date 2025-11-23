@@ -1,16 +1,5 @@
 `default_nettype none
 
-/*
- * MULTI_OBSTACLE.V - Enhanced with ROM Images
- * 
- * Features:
- * - 4 different obstacle images loaded from ROM
- * - Each obstacle randomly gets one of 4 images
- * - Progressive difficulty with speed/spawn increases
- * - FIXED: Spawn higher to prevent top-of-screen glitching
- * - 5 obstacles instead of 4
- */
-
 module multi_obstacle(
     input wire Resetn,
     input wire Clock,
@@ -35,40 +24,39 @@ module multi_obstacle(
 
     parameter OBS_WIDTH = 60;
     parameter OBS_HEIGHT = 60;
-    parameter MAX_OBSTACLES = 5;  // Changed from 4 to 5
+    parameter MAX_OBSTACLES = 5;  
 
     parameter PLAYER_Y_POS = 360;
     parameter PLAYER_HEIGHT = 60;
     parameter SCORE_THRESHOLD = PLAYER_Y_POS + PLAYER_HEIGHT + 10;
     
-    // FIXED: Spawn much higher up to prevent visible glitching
-    parameter SPAWN_Y_POS = -120;  // Was -60, now -120 (2x obstacle height off-screen)
-
+    parameter SPAWN_Y_POS = -120; //fix this position later doesn't fix glitch
     parameter ERASE_COLOR = 9'b000_000_000;
 
+
+    //states
     parameter IDLE = 3'd0;
     parameter ERASE_OBS = 3'd1;
     parameter MOVE_OBS = 3'd2;
     parameter DRAW_OBS = 3'd3;
     parameter CHECK_COLLISION = 3'd4;
 
-    // Dynamic difficulty parameters
     parameter INITIAL_SPEED_LIMIT = 23'd700_000;
-    parameter MIN_SPEED_LIMIT = 23'd200_000;
+    parameter MIN_SPEED_LIMIT = 23'd200_000; //max speen so that the game is playable still
     parameter SPEED_DECREMENT = 23'd50_000;
     
+    //this is since we speed it up so we reduce spawn so that we dont have less obstacle on screen
     parameter INITIAL_SPAWN_INTERVAL = 27'd50_000_000;
     parameter MIN_SPAWN_INTERVAL = 27'd15_000_000;
     parameter SPAWN_DECREMENT = 27'd2_500_000;
 
-    // Obstacle data - NOW 5 OBSTACLES (0-4)
-    reg active0, active1, active2, active3, active4;
+    reg active0, active1, active2, active3, active4; //enables
     reg [2:0] obs_lane0, obs_lane1, obs_lane2, obs_lane3, obs_lane4;
     reg signed [9:0] obs_y0, obs_y1, obs_y2, obs_y3, obs_y4;
     reg [9:0] obs_x0, obs_x1, obs_x2, obs_x3, obs_x4;
     reg scored0, scored1, scored2, scored3, scored4;
     
-    // Image type for each obstacle (0-3 for 4 different images)
+    // Image type for each obstacle
     reg [1:0] obs_image0, obs_image1, obs_image2, obs_image3, obs_image4;
 
     reg [2:0] current_obs;  // Changed to 3 bits to handle 5 obstacles
@@ -76,11 +64,11 @@ module multi_obstacle(
     reg [5:0] pixel_y;
     reg [2:0] state;
 
-    // Dynamic speed and spawn timing
     reg [22:0] speed_counter;
     reg [22:0] current_speed_limit;
     reg [26:0] spawn_counter;
     reg [26:0] current_spawn_interval;
+
     reg [9:0] total_score;
     reg score_increment_prev;
 
@@ -89,7 +77,7 @@ module multi_obstacle(
     wire [2:0] random_lane;
     wire [1:0] random_image;
     
-    assign random_lane = (lfsr[4:0] % 5);
+    assign random_lane = (lfsr[4:0] % 5); //gives objects the lane to spawn in using previous logic
     assign random_image = lfsr[6:5];
 
     reg [9:0] vga_x_reg;
@@ -97,14 +85,15 @@ module multi_obstacle(
     reg [8:0] vga_color_reg;
     reg vga_write_reg;
 
-    // ROM interface
+    // ROM 
     wire [11:0] rom_address;
     wire [8:0] rom_data_0, rom_data_1, rom_data_2, rom_data_3;
     
     reg [1:0] current_drawing_image;
     
-    assign rom_address = (pixel_y * 60) + pixel_x;
+    assign rom_address = (pixel_y * 60) + pixel_x; 
     
+    //mux for getting the image selected
     wire [8:0] selected_rom_data;
     assign selected_rom_data = (current_drawing_image == 2'd0) ? rom_data_0 :
                                 (current_drawing_image == 2'd1) ? rom_data_1 :
@@ -136,6 +125,7 @@ module multi_obstacle(
         .q(rom_data_3)
     );
 
+    //same as player fsm
     function [9:0] lane_to_x;
         input [2:0] lane;
         begin
@@ -143,7 +133,8 @@ module multi_obstacle(
         end
     endfunction
 
-    always @(posedge Clock) begin
+    always @(posedge Clock) 
+    begin
         if (!Resetn) begin
             state <= IDLE;
             current_obs <= 0;
@@ -169,15 +160,20 @@ module multi_obstacle(
             active4 <= 0; obs_lane4 <= 0; obs_y4 <= SPAWN_Y_POS; obs_x4 <= 0; scored4 <= 0; obs_image4 <= 0;
         end
         
-        else begin
+        else 
+        begin
             score_increment <= 0;
             
             // Track score and adjust difficulty
             score_increment_prev <= score_increment;
-            if (score_increment && !score_increment_prev) begin
-                total_score <= total_score + 1;
+
+            if (score_increment && !score_increment_prev) 
+            begin 
+                total_score <= total_score + 1;   //increase score
                 
-                if (total_score[2:0] == 3'b100 && current_speed_limit > MIN_SPEED_LIMIT) begin
+                //this checks if its a multiple of 5 to increase speed and reduce spawn
+                if (total_score[2:0] == 3'b100 && current_speed_limit > MIN_SPEED_LIMIT)  
+                begin
                     if (current_speed_limit > (MIN_SPEED_LIMIT + SPEED_DECREMENT))
                         current_speed_limit <= current_speed_limit - SPEED_DECREMENT;
                     else
@@ -199,10 +195,12 @@ module multi_obstacle(
             
             // Spawn new obstacles
             spawn_counter <= spawn_counter + 1;
-            if (spawn_counter >= current_spawn_interval) begin
+            if (spawn_counter >= current_spawn_interval) 
+            begin
                 spawn_counter <= 0;
 
-                if (!active0) begin
+                if (!active0) 
+                begin
                     active0 <= 1;
                     obs_lane0 <= random_lane;
                     obs_x0 <= lane_to_x(random_lane);
@@ -210,7 +208,8 @@ module multi_obstacle(
                     scored0 <= 0;
                     obs_image0 <= random_image;
                 end
-                else if (!active1) begin
+                else if (!active1) 
+                begin
                     active1 <= 1;
                     obs_lane1 <= random_lane;
                     obs_x1 <= lane_to_x(random_lane);
@@ -218,7 +217,8 @@ module multi_obstacle(
                     scored1 <= 0;
                     obs_image1 <= random_image;
                 end
-                else if (!active2) begin
+                else if (!active2) 
+                begin
                     active2 <= 1;
                     obs_lane2 <= random_lane;
                     obs_x2 <= lane_to_x(random_lane);
@@ -226,7 +226,8 @@ module multi_obstacle(
                     scored2 <= 0;
                     obs_image2 <= random_image;
                 end
-                else if (!active3) begin
+                else if (!active3) 
+                begin
                     active3 <= 1;
                     obs_lane3 <= random_lane;
                     obs_x3 <= lane_to_x(random_lane);
@@ -234,7 +235,8 @@ module multi_obstacle(
                     scored3 <= 0;
                     obs_image3 <= random_image;
                 end
-                else if (!active4) begin
+                else if (!active4) 
+                begin
                     active4 <= 1;
                     obs_lane4 <= random_lane;
                     obs_x4 <= lane_to_x(random_lane);
@@ -262,15 +264,18 @@ module multi_obstacle(
 
                     // Only erase if obstacle is visible on screen
                     if (current_obs == 0) begin
-                        if (active0 && obs_y0 >= 0) begin
+                        if (active0 && obs_y0 >= 0)  // (Y >= 0 means at least partially visible)
+                        begin
                             vga_x_reg <= obs_x0 + pixel_x;
                             vga_y_reg <= obs_y0[8:0] + pixel_y;
                             vga_color_reg <= ERASE_COLOR;
                             vga_write_reg <= 1;
 
+                            //for loop to scan through the pixels
                             if (pixel_x < OBS_WIDTH - 1)
                                 pixel_x <= pixel_x + 1;
-                            else begin
+                            else 
+                            begin
                                 pixel_x <= 0;
                                 if (pixel_y < OBS_HEIGHT - 1)
                                     pixel_y <= pixel_y + 1;
@@ -288,6 +293,8 @@ module multi_obstacle(
                         end
                     end
 
+
+                    //continue with same thing for other obstacles copy and paste!!!!!
                     else if (current_obs == 1) begin
                         if (active1 && obs_y1 >= 0) begin
                             vga_x_reg <= obs_x1 + pixel_x;
@@ -465,7 +472,6 @@ module multi_obstacle(
                         end
                         current_obs <= 4;
                     end
-                    // NEW: Handle 5th obstacle movement
                     else if (current_obs == 4) begin
                         if (active4) begin
                             if (obs_y4 >= YSCREEN) begin
@@ -629,7 +635,8 @@ module multi_obstacle(
                     end
                 end
 
-                CHECK_COLLISION: begin
+                CHECK_COLLISION: 
+                begin
                     collision <= 0;
 
                     if (!player_is_collision_mode) begin

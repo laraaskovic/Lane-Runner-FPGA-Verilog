@@ -1,35 +1,22 @@
 `default_nettype none
 
-/*
- * TITLE_SCREEN.V
- * 
- * Displays "LANE RUNNER" title screen with letters in lanes
- * and waits for KEY[3] to start the game
- * 
- * Layout:
- * - 5 letters arranged vertically, one in each lane: L, A, N, E, R
- * - Each letter is 40x50 pixels, centered in its lane
- * - Only draws within lane boundaries (120-520 X range)
- * - Erases title before game starts
- */
-
 module title_screen(
     input wire Resetn,
     input wire Clock,
     input wire start_key,           // KEY[3] to start game
-    output reg showing_title,       // High when title is active
-    output reg title_complete,      // High when ready to start game
+    output reg showing_title,       
+    output reg title_complete,  
     output wire [9:0] VGA_x,
     output wire [8:0] VGA_y,
     output wire [8:0] VGA_color,
     output wire VGA_write
 );
 
-    // VGA parameters
+    // VGA 
     parameter XSCREEN = 640;
     parameter YSCREEN = 480;
     
-    // Lane configuration - must match game settings
+    // Lanes
     parameter NUM_LANES = 5;
     parameter LANE_WIDTH = 80;
     parameter LANE_START_X = 120;
@@ -88,7 +75,6 @@ module title_screen(
     assign letter_x = get_letter_x(current_letter);
     assign letter_y = get_letter_y(current_letter);
     
-    // Letter patterns using 5x7 grid (scaled up to 40x50)
     function is_letter_pixel;
         input [3:0] letter;
         input [5:0] px;
@@ -164,7 +150,6 @@ module title_screen(
             start_key_prev <= start_key;
             
             case (state)
-                // ==========================================
                 IDLE: begin
                     showing_title <= 1;
                     title_complete <= 0;
@@ -175,7 +160,6 @@ module title_screen(
                     state <= DRAW_TITLE;
                 end
                 
-                // ==========================================
                 DRAW_TITLE: begin
                     // Draw current letter pixel by pixel
                     vga_x_reg <= letter_x + pixel_x;
@@ -209,7 +193,6 @@ module title_screen(
                     end
                 end
                 
-                // ==========================================
                 WAIT_START: begin
                     vga_write_reg <= 0;
                     
@@ -222,7 +205,6 @@ module title_screen(
                     end
                 end
                 
-                // ==========================================
                 ERASE_TITLE: begin
                     // Erase current letter by drawing black
                     vga_x_reg <= letter_x + pixel_x;
@@ -255,7 +237,6 @@ module title_screen(
                     end
                 end
                 
-                // ==========================================
                 DONE: begin
                     showing_title <= 0;
                     title_complete <= 1;
