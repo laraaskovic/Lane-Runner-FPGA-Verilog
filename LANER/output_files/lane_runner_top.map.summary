@@ -1,0 +1,17 @@
+Analysis & Synthesis Status : Successful - Sun Nov 23 12:08:29 2025
+Quartus Prime Version : 23.1std.0 Build 991 11/28/2023 SC Lite Edition
+Revision Name : lane_runner_top
+Top-level Entity Name : lane_runner_top
+Family : Cyclone V
+Logic utilization (in ALMs) : N/A
+Total registers : 717
+Total pins : 84
+Total virtual pins : 0
+Total block memory bits : 2,959,200
+Total DSP Blocks : 3
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 1
+Total DLLs : 0

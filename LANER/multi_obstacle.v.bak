@@ -1,0 +1,339 @@
+
+/* ============================================================================
+ * FILE 2: multi_obstacle.v
+ * ============================================================================
+ * 
+ * MULTIPLE OBSTACLE MANAGER
+ * 
+ * What it does:
+ * - Manages up to 4 obstacles at once
+ * - Spawns new obstacle every 3 seconds
+ * - Obstacles fall down screen continuously
+ * - Round-robin lane selection (0→1→2→3→4→0...)
+ * - Full collision detection (checks entire 60x60 box overlap)
+ * - Erases old positions and draws new positions
+ * 
+ * Key Features:
+ * - active[]: Tracks which obstacle slots are in use
+ * - obs_lane[]: Which lane each obstacle is in (0-4)
+ * - obs_y[]: Y position of each obstacle (can be negative when spawning above screen)
+ * - obs_x[]: X position calculated from lane
+ * 
+ * Collision Detection:
+ * - Checks if obstacle and player are in same lane
+ * - Checks if their 60x60 boxes overlap vertically
+ * - Player at Y=360-420, Obstacle at Y=obs_y to obs_y+60
+ * - Collision if: obs_y >= 300 AND obs_y <= 420
+ * 
+ * Save as: multi_obstacle.v
+ * ============================================================================
+ */
+
+`default_nettype none
+
+module multi_obstacle(
+    input wire Resetn,
+    input wire Clock,
+    input wire [2:0] player_lane,        // Which lane player is in (for collision)
+    output wire [9:0] VGA_x,             // X coordinate to draw
+    output wire [8:0] VGA_y,             // Y coordinate to draw
+    output wire [8:0] VGA_color,         // Color to draw
+    output wire VGA_write,               // Write enable signal
+    output reg collision                 // High when any obstacle hits player
+);
+
+    // Screen parameters
+    parameter XSCREEN = 640;
+    parameter YSCREEN = 480;
+    
+    // Lane configuration (must match player_object.v)
+    parameter NUM_LANES = 5;
+    parameter LANE_WIDTH = 80;
+    parameter LANE_START_X = 120;
+    
+    // Obstacle size (same as player)
+    parameter OBS_WIDTH = 60;
+    parameter OBS_HEIGHT = 60;
+    parameter MAX_OBSTACLES = 4;  // Maximum 4 obstacles on screen at once
+    
+    // Player position (for collision detection)
+    parameter PLAYER_Y_POS = 360;
+    parameter PLAYER_HEIGHT = 60;
+    
+    // Colors
+    parameter OBS_COLOR = 9'b111_000_000;    // RED obstacles
+    parameter ERASE_COLOR = 9'b111_111_111;  // WHITE background
+    
+    // FSM States
+    parameter IDLE = 3'd0;           // Waiting for update timer
+    parameter ERASE_OBS = 3'd1;      // Erasing all obstacles at old positions
+    parameter MOVE_OBS = 3'd2;       // Moving all obstacles down
+    parameter DRAW_OBS = 3'd3;       // Drawing all obstacles at new positions
+    parameter CHECK_COLLISION = 3'd4; // Checking if any obstacle hits player
+    
+    // Obstacle data arrays (one entry per obstacle slot)
+    reg active [0:MAX_OBSTACLES-1];          // Is this slot active? (1=yes, 0=empty slot)
+    reg [2:0] obs_lane [0:MAX_OBSTACLES-1];  // Lane number (0-4)
+    reg signed [9:0] obs_y [0:MAX_OBSTACLES-1]; // Y position (signed so can be negative above screen)
+    reg [9:0] obs_x [0:MAX_OBSTACLES-1];     // X position (calculated from lane)
+    
+    // Current obstacle being processed
+    reg [1:0] current_obs;  // 0-3 (which of the 4 obstacles we're working on)
+    
+    // Pixel counters for drawing 60x60 blocks
+    reg [5:0] pixel_x;  // 0-59
+    reg [5:0] pixel_y;  // 0-59
+    
+    // FSM state
+    reg [2:0] state;
+    
+    // Speed control - how fast obstacles fall
+    reg [22:0] speed_counter;
+    parameter SPEED_LIMIT = 23'd1_000_000;  // Update every ~20ms at 50MHz = smooth motion
+    
+    // Spawn control - how often new obstacles appear
+    reg [25:0] spawn_counter;
+    parameter SPAWN_INTERVAL = 26'd50_000_000;  // Spawn every 1 second at 50MHz
+    reg [2:0] next_spawn_lane;  // Which lane to spawn in next (round-robin: 0,1,2,3,4,0,1...)
+    
+    // VGA output registers
+    reg [9:0] vga_x_reg;
+    reg [8:0] vga_y_reg;
+    reg [8:0] vga_color_reg;
+    reg vga_write_reg;
+    
+    // Convert lane number to X pixel coordinate
+    function [9:0] lane_to_x;
+        input [2:0] lane;
+        begin
+            // Same calculation as player: center obstacle in lane
+            lane_to_x = LANE_START_X + (lane * LANE_WIDTH) + ((LANE_WIDTH - OBS_WIDTH) / 2);
+        end
+    endfunction
+    
+    integer i;  // Loop variable for initialization
+    
+    // Main FSM
+    always @(posedge Clock) begin
+        if (!Resetn) begin
+            // RESET: Initialize everything
+            state <= IDLE;
+            current_obs <= 0;
+            pixel_x <= 0;
+            pixel_y <= 0;
+            speed_counter <= 0;
+            spawn_counter <= 0;
+            next_spawn_lane <= 0;  // Start spawning in lane 0
+            vga_write_reg <= 0;
+            collision <= 0;
+            
+            // Mark all obstacle slots as inactive
+            for (i = 0; i < MAX_OBSTACLES; i = i + 1) begin
+                active[i] <= 0;
+                obs_lane[i] <= 0;
+                obs_y[i] <= -60;  // Start above screen
+                obs_x[i] <= 0;
+            end
+        end
+        else begin
+            // ======================================================
+            // SPAWN TIMER: Create new obstacles periodically
+            // ======================================================
+            spawn_counter <= spawn_counter + 1;
+            if (spawn_counter >= SPAWN_INTERVAL) begin
+                spawn_counter <= 0;
+                
+                // Find an empty obstacle slot
+                for (i = 0; i < MAX_OBSTACLES; i = i + 1) begin
+                    if (!active[i]) begin
+                        // Found empty slot - spawn new obstacle here
+                        active[i] <= 1;
+                        obs_lane[i] <= next_spawn_lane;
+                        obs_x[i] <= lane_to_x(next_spawn_lane);
+                        obs_y[i] <= -60;  // Start 60 pixels above screen
+                        i = MAX_OBSTACLES;  // Exit loop (found a slot)
+                    end
+                end
+                
+                // Update lane for next spawn (round-robin)
+                if (next_spawn_lane == 4)
+                    next_spawn_lane <= 0;  // Wrap to lane 0
+                else
+                    next_spawn_lane <= next_spawn_lane + 1;
+            end
+            
+            // ======================================================
+            // MAIN STATE MACHINE
+            // ======================================================
+            case (state)
+                // --------------------------------------------------
+                IDLE: begin
+                    // Wait for speed timer before updating obstacles
+                    vga_write_reg <= 0;
+                    
+                    if (speed_counter < SPEED_LIMIT) begin
+                        speed_counter <= speed_counter + 1;
+                    end
+                    else begin
+                        // Timer expired - time to update all obstacles
+                        speed_counter <= 0;
+                        current_obs <= 0;  // Start with obstacle #0
+                        state <= ERASE_OBS;
+                    end
+                end
+                
+                // --------------------------------------------------
+                ERASE_OBS: begin
+                    // Erase all obstacles at their OLD positions
+                    if (current_obs < MAX_OBSTACLES) begin
+                        if (active[current_obs] && obs_y[current_obs] >= 0) begin
+                            // This obstacle is active and visible - erase it
+                            vga_x_reg <= obs_x[current_obs] + pixel_x;
+                            vga_y_reg <= obs_y[current_obs][8:0] + pixel_y;
+                            vga_color_reg <= ERASE_COLOR;  // White
+                            vga_write_reg <= 1;
+                            
+                            // Draw all 60x60 pixels
+                            if (pixel_x < OBS_WIDTH - 1)
+                                pixel_x <= pixel_x + 1;
+                            else begin
+                                pixel_x <= 0;
+                                if (pixel_y < OBS_HEIGHT - 1)
+                                    pixel_y <= pixel_y + 1;
+                                else begin
+                                    // Finished erasing this obstacle
+                                    pixel_y <= 0;
+                                    vga_write_reg <= 0;
+                                    current_obs <= current_obs + 1;  // Move to next obstacle
+                                end
+                            end
+                        end
+                        else begin
+                            // This obstacle is inactive or off-screen - skip it
+                            current_obs <= current_obs + 1;
+                        end
+                    end
+                    else begin
+                        // Done erasing all obstacles
+                        current_obs <= 0;
+                        state <= MOVE_OBS;
+                    end
+                end
+                
+                // --------------------------------------------------
+                MOVE_OBS: begin
+                    // Update Y position of all obstacles (make them fall)
+                    if (current_obs < MAX_OBSTACLES) begin
+                        if (active[current_obs]) begin
+                            // Move this obstacle down
+                            if (obs_y[current_obs] >= YSCREEN) begin
+                                // Obstacle fell off bottom of screen - deactivate it
+                                active[current_obs] <= 0;
+                            end
+                            else begin
+                                // Move down by 2 pixels (fall speed)
+                                obs_y[current_obs] <= obs_y[current_obs] + 2;
+                            end
+                        end
+                        current_obs <= current_obs + 1;
+                    end
+                    else begin
+                        // Done moving all obstacles
+                        current_obs <= 0;
+                        state <= DRAW_OBS;
+                    end
+                end
+                
+                // --------------------------------------------------
+                DRAW_OBS: begin
+                    // Draw all obstacles at their NEW positions
+                    if (current_obs < MAX_OBSTACLES) begin
+                        if (active[current_obs] && 
+                            obs_y[current_obs] >= 0 && 
+                            obs_y[current_obs] < YSCREEN) begin
+                            // This obstacle is active and visible - draw it
+                            vga_x_reg <= obs_x[current_obs] + pixel_x;
+                            vga_y_reg <= obs_y[current_obs][8:0] + pixel_y;
+                            vga_color_reg <= OBS_COLOR;  // Red
+                            vga_write_reg <= 1;
+                            
+                            // Draw all 60x60 pixels
+                            if (pixel_x < OBS_WIDTH - 1)
+                                pixel_x <= pixel_x + 1;
+                            else begin
+                                pixel_x <= 0;
+                                if (pixel_y < OBS_HEIGHT - 1)
+                                    pixel_y <= pixel_y + 1;
+                                else begin
+                                    // Finished drawing this obstacle
+                                    pixel_y <= 0;
+                                    vga_write_reg <= 0;
+                                    current_obs <= current_obs + 1;
+                                end
+                            end
+                        end
+                        else begin
+                            // Skip inactive/invisible obstacles
+                            current_obs <= current_obs + 1;
+                        end
+                    end
+                    else begin
+                        // Done drawing all obstacles
+                        state <= CHECK_COLLISION;
+                    end
+                end
+                
+                // --------------------------------------------------
+                CHECK_COLLISION: begin
+                    // Check if any obstacle collides with player
+                    // MANUALLY UNROLLED LOOP (for synthesis)
+                    collision <= 0;  // Default: no collision
+                    
+                    // Check obstacle 0
+                    if (active[0] && (obs_lane[0] == player_lane)) begin
+                        if ((obs_y[0] >= (PLAYER_Y_POS - OBS_HEIGHT)) && 
+                            (obs_y[0] <= (PLAYER_Y_POS + PLAYER_HEIGHT))) begin
+                            collision <= 1;
+                        end
+                    end
+                    
+                    // Check obstacle 1
+                    if (active[1] && (obs_lane[1] == player_lane)) begin
+                        if ((obs_y[1] >= (PLAYER_Y_POS - OBS_HEIGHT)) && 
+                            (obs_y[1] <= (PLAYER_Y_POS + PLAYER_HEIGHT))) begin
+                            collision <= 1;
+                        end
+                    end
+                    
+                    // Check obstacle 2
+                    if (active[2] && (obs_lane[2] == player_lane)) begin
+                        if ((obs_y[2] >= (PLAYER_Y_POS - OBS_HEIGHT)) && 
+                            (obs_y[2] <= (PLAYER_Y_POS + PLAYER_HEIGHT))) begin
+                            collision <= 1;
+                        end
+                    end
+                    
+                    // Check obstacle 3
+                    if (active[3] && (obs_lane[3] == player_lane)) begin
+                        if ((obs_y[3] >= (PLAYER_Y_POS - OBS_HEIGHT)) && 
+                            (obs_y[3] <= (PLAYER_Y_POS + PLAYER_HEIGHT))) begin
+                            collision <= 1;
+                        end
+                    end
+                    
+                    state <= IDLE;  // Return to waiting for next update
+                end
+                
+                default: state <= IDLE;
+            endcase
+        end
+    end
+    
+    // Connect internal registers to output ports
+    assign VGA_x = vga_x_reg;
+    assign VGA_y = vga_y_reg;
+    assign VGA_color = vga_color_reg;
+    assign VGA_write = vga_write_reg;
+
+endmodule
+

@@ -1,0 +1,202 @@
+/*
+ * PLAYER_OBJECT.V
+ *
+ * 640x480 VGA Resolution Version
+ * - Player moves between 5 lanes
+ * - Erases old position (white)
+ * - Draws player at new position
+ */
+
+`default_nettype none
+
+module player_object(
+    input wire Resetn,
+    input wire Clock,
+    input wire move_left,
+    input wire move_right,
+    output reg [2:0] player_lane,       // Current lane (0-4)
+    output wire [nX-1:0] VGA_x,         // VGA pixel X coordinate
+    output wire [nY-1:0] VGA_y,         // VGA pixel Y coordinate
+    output wire [COLOR_DEPTH-1:0] VGA_color,  // VGA pixel color
+    output wire VGA_write               // VGA write enable
+);
+
+    // VGA parameters - 640x480 Resolution
+    parameter nX = 10;          // 10 bits for 640 pixels
+    parameter nY = 9;           // 9 bits for 480 pixels
+    parameter COLOR_DEPTH = 9;
+   
+    // Screen dimensions
+    parameter XSCREEN = 640;
+    parameter YSCREEN = 480;
+   
+    // Lane configuration
+    parameter NUM_LANES = 5;
+    parameter LANE_WIDTH = 80;
+    parameter LANE_START_X = 120;
+   
+    // Player dimensions
+    parameter PLAYER_WIDTH = 60;
+    parameter PLAYER_HEIGHT = 60;
+    parameter PLAYER_Y_POS = 360;
+   
+    // Colors
+    parameter PLAYER_COLOR = 9'b000_111_111;  // Cyan
+    parameter ERASE_COLOR  = 9'b110_110_110;  // White (erases)
+   
+    // FSM States
+    parameter INIT = 3'd0;
+    parameter DRAW_INITIAL = 3'd1;
+    parameter IDLE = 3'd2;
+    parameter ERASE = 3'd3;
+    parameter DRAW = 3'd4;
+   
+    reg [2:0] state = INIT;
+    reg [2:0] target_lane 3'd2;
+    reg [nX-1:0] player_x_pos;
+    reg [nX-1:0] prev_x_pos;
+    reg [5:0] pixel_x = 0;
+    reg [5:0] pixel_y = 0;
+   
+    reg [nX-1:0] vga_x_reg;
+    reg [nY-1:0] vga_y_reg;
+    reg [COLOR_DEPTH-1:0] vga_color_reg;
+    reg vga_write_reg;
+   
+    reg input_handled;
+   
+    // Convert lane number to X coordinate
+    function [nX-1:0] lane_to_x;
+        input [2:0] lane;
+        begin
+            lane_to_x = LANE_START_X + (lane * LANE_WIDTH) +
+                       ((LANE_WIDTH - PLAYER_WIDTH) / 2);
+        end
+    endfunction
+
+    // FSM
+    always @(posedge Clock) begin
+        if (!Resetn) begin
+            state <= INIT;
+            player_lane <= 3'd2;
+            player_x_pos <= lane_to_x(3'd2);
+            prev_x_pos <= lane_to_x(3'd2);
+            pixel_x <= 0;
+            pixel_y <= 0;
+            vga_write_reg <= 0;
+            vga_color_reg <= PLAYER_COLOR;
+            input_handled <= 0;
+        end
+        else begin
+            case (state)
+                // --------------------------------------------------
+                INIT: begin
+                    pixel_x <= 0;
+                    pixel_y <= 0;
+                    vga_write_reg <= 0;
+                    state <= DRAW_INITIAL;
+                end
+
+                // --------------------------------------------------
+                DRAW_INITIAL: begin
+                    vga_x_reg <= player_x_pos + pixel_x;
+                    vga_y_reg <= PLAYER_Y_POS + pixel_y;
+                    vga_color_reg <= PLAYER_COLOR;
+                    vga_write_reg <= 1;
+                   
+                    if (pixel_x < PLAYER_WIDTH - 1)
+                        pixel_x <= pixel_x + 1;
+                    else begin
+                        pixel_x <= 0;
+                        if (pixel_y < PLAYER_HEIGHT - 1)
+                            pixel_y <= pixel_y + 1;
+                        else begin
+                            pixel_y <= 0;
+                            vga_write_reg <= 0;
+                            state <= IDLE;
+                        end
+                    end
+                end
+
+                // --------------------------------------------------
+                IDLE: begin
+                    vga_write_reg <= 0;
+                   
+                    if (!input_handled) begin
+                        if (move_left && player_lane > 0) begin
+                            prev_x_pos <= player_x_pos;
+                            player_lane <= player_lane - 1;
+                            player_x_pos <= lane_to_x(player_lane - 1);
+                            pixel_x <= 0;
+                            pixel_y <= 0;
+                            input_handled <= 1;
+                            state <= ERASE;
+                        end
+                        else if (move_right && player_lane < NUM_LANES - 1) begin
+                            prev_x_pos <= player_x_pos;
+                            player_lane <= player_lane + 1;
+                            player_x_pos <= lane_to_x(player_lane + 1);
+                            pixel_x <= 0;
+                            pixel_y <= 0;
+                            input_handled <= 1;
+                            state <= ERASE;
+                        end
+                    end
+                   
+                    if (!move_left && !move_right)
+                        input_handled <= 0;
+                end
+
+                // --------------------------------------------------
+                ERASE: begin
+                    vga_x_reg <= prev_x_pos + pixel_x;
+                    vga_y_reg <= PLAYER_Y_POS + pixel_y;
+                    vga_color_reg <= ERASE_COLOR;
+                    vga_write_reg <= 1;
+                   
+                    if (pixel_x < PLAYER_WIDTH - 1)
+                        pixel_x <= pixel_x + 1;
+                    else begin
+                        pixel_x <= 0;
+                        if (pixel_y < PLAYER_HEIGHT - 1)
+                            pixel_y <= pixel_y + 1;
+                        else begin
+                            pixel_y <= 0;
+                            vga_write_reg <= 0;
+                            state <= DRAW;
+                        end
+                    end
+                end
+
+                // --------------------------------------------------
+                DRAW: begin
+                    vga_x_reg <= player_x_pos + pixel_x;
+                    vga_y_reg <= PLAYER_Y_POS + pixel_y;
+                    vga_color_reg <= PLAYER_COLOR;
+                    vga_write_reg <= 1;
+                   
+                    if (pixel_x < PLAYER_WIDTH - 1)
+                        pixel_x <= pixel_x + 1;
+                    else begin
+                        pixel_x <= 0;
+                        if (pixel_y < PLAYER_HEIGHT - 1)
+                            pixel_y <= pixel_y + 1;
+                        else begin
+                            pixel_y <= 0;
+                            vga_write_reg <= 0;
+                            state <= IDLE;
+                        end
+                    end
+                end
+
+                default: state <= INIT;
+            endcase
+        end
+    end
+
+    assign VGA_x = vga_x_reg;
+    assign VGA_y = vga_y_reg;
+    assign VGA_color = vga_color_reg;
+    assign VGA_write = vga_write_reg;
+
+endmodule

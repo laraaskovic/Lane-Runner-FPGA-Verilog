@@ -1,0 +1,273 @@
+/*
+ * Lane Runner - TOP MODULE (lane_runner_top.v)
+ * 
+ * SIMPLIFIED VERSION - One obstacle that falls slowly
+ * 
+ * 640x480 VGA Resolution
+ * - Player moves between 5 lanes
+ * - ONE obstacle falls slowly down the screen
+ * - Collision stops the game
+ * - Keyboard arrow keys or KEY buttons for control
+ * 
+ * Controls:
+ * - LEFT arrow key or KEY[1] = move LEFT
+ * - RIGHT arrow key or KEY[0] = move RIGHT
+ * - KEY[3] = reset game
+ */
+
+`default_nettype none
+
+module lane_runner_top(
+    input wire CLOCK_50,
+    input wire [9:0] SW,
+    input wire [3:0] KEY,
+    inout wire PS2_CLK,
+    inout wire PS2_DAT,
+    output wire [9:0] LEDR,
+    output wire [6:0] HEX0,
+    output wire [6:0] HEX1,
+    output wire [7:0] VGA_R,
+    output wire [7:0] VGA_G,
+    output wire [7:0] VGA_B,
+    output wire VGA_HS,
+    output wire VGA_VS,
+    output wire VGA_BLANK_N,
+    output wire VGA_SYNC_N,
+    output wire VGA_CLK
+);
+
+    // VGA Parameters
+    parameter nX = 10;
+    parameter nY = 9;
+    parameter COLOR_DEPTH = 9;
+    
+    wire Resetn;
+    wire move_left_key, move_right_key;
+    wire move_left_kb, move_right_kb;
+    wire move_left, move_right;
+    
+    assign Resetn = KEY[3];
+    assign move_left = move_left_key | move_left_kb;
+    assign move_right = move_right_key | move_right_kb;
+    
+    // Player Signals
+    wire [2:0] player_lane;
+    wire [nX-1:0] player_x;
+    wire [nY-1:0] player_y;
+    wire [COLOR_DEPTH-1:0] player_color;
+    wire player_write;
+    
+    // Obstacle Signals
+    wire [nX-1:0] obs_x;
+    wire [nY-1:0] obs_y;
+    wire [COLOR_DEPTH-1:0] obs_color;
+    wire obs_write;
+    wire collision;
+    wire game_over;
+    
+    // PS/2 Signals
+    wire [7:0] ps2_key_data;
+    wire ps2_key_pressed;
+    
+    // VGA Arbitration - Simple priority
+    wire [nX-1:0] vga_x;
+    wire [nY-1:0] vga_y;
+    wire [COLOR_DEPTH-1:0] vga_color;
+    wire vga_write;
+    
+    // Obstacle has priority over player
+    assign vga_x = obs_write ? obs_x : player_x;
+    assign vga_y = obs_write ? obs_y : player_y;
+    assign vga_color = obs_write ? obs_color : player_color;
+    assign vga_write = obs_write | player_write;
+    
+    // Button Synchronizers
+    sync left_sync (~KEY[1], Resetn, CLOCK_50, move_left_key);
+    sync right_sync (~KEY[0], Resetn, CLOCK_50, move_right_key);
+    
+    // PS/2 Keyboard Controller
+    PS2_Controller #(.INITIALIZE_MOUSE(0)) PS2 (
+        .CLOCK_50(CLOCK_50),
+        .reset(~Resetn),
+        .the_command(8'h00),
+        .send_command(1'b0),
+        .PS2_CLK(PS2_CLK),
+        .PS2_DAT(PS2_DAT),
+        .command_was_sent(),
+        .error_communication_timed_out(),
+        .received_data(ps2_key_data),
+        .received_data_en(ps2_key_pressed)
+    );
+    
+    // Keyboard Decoder
+    keyboard_decoder KB_DEC (
+        .clk(CLOCK_50),
+        .reset(~Resetn),
+        .ps2_data(ps2_key_data),
+        .ps2_valid(ps2_key_pressed),
+        .left_arrow(move_left_kb),
+        .right_arrow(move_right_kb)
+    );
+    
+    // Player Object - Freeze when game over
+    player_object PLAYER (
+        .Resetn(Resetn & ~game_over),
+        .Clock(CLOCK_50),
+        .move_left(move_left),
+        .move_right(move_right),
+        .player_lane(player_lane),
+        .VGA_x(player_x),
+        .VGA_y(player_y),
+        .VGA_color(player_color),
+        .VGA_write(player_write)
+    );
+    
+    multi_obstacle OBSTACLES (
+        .Resetn(Resetn),
+        .Clock(CLOCK_50),
+        .player_lane(player_lane),
+        .VGA_x(obs_x),
+        .VGA_y(obs_y),
+        .VGA_color(obs_color),
+        .VGA_write(obs_write),
+        .collision(collision)
+    );
+    
+    // Game Over Handler
+    game_over_handler GAME_OVER (
+        .Resetn(Resetn),
+        .Clock(CLOCK_50),
+        .collision(collision),
+        .game_over(game_over)
+    );
+    
+    // VGA Adapter
+    vga_adapter VGA (
+        .resetn(Resetn),
+        .clock(CLOCK_50),
+        .color(vga_color),
+        .x(vga_x),
+        .y(vga_y),
+        .write(vga_write),
+        .VGA_R(VGA_R),
+        .VGA_G(VGA_G),
+        .VGA_B(VGA_B),
+        .VGA_HS(VGA_HS),
+        .VGA_VS(VGA_VS),
+        .VGA_BLANK_N(VGA_BLANK_N),
+        .VGA_SYNC_N(VGA_SYNC_N),
+        .VGA_CLK(VGA_CLK)
+    );
+        defparam VGA.RESOLUTION = "640x480";
+        defparam VGA.BACKGROUND_IMAGE = "image.colour.mif";
+    
+    // LED Display
+    assign LEDR[2:0] = player_lane;
+    assign LEDR[3] = collision;
+    assign LEDR[4] = game_over;
+    assign LEDR[9:5] = 5'b0;
+    
+    assign HEX0 = 7'b1111111;
+    assign HEX1 = 7'b1111111;
+    
+endmodule
+
+
+// ============================================================================
+// KEYBOARD DECODER
+// ============================================================================
+module keyboard_decoder(
+    input wire clk,
+    input wire reset,
+    input wire [7:0] ps2_data,
+    input wire ps2_valid,
+    output reg left_arrow,
+    output reg right_arrow
+);
+
+    parameter LEFT_ARROW_CODE = 8'h6B;
+    parameter RIGHT_ARROW_CODE = 8'h74;
+    parameter EXTENDED_CODE = 8'hE0;
+    parameter BREAK_CODE = 8'hF0;
+    
+    parameter WAIT_CODE = 2'b00;
+    parameter WAIT_EXTENDED = 2'b01;
+    parameter WAIT_BREAK = 2'b10;
+    
+    reg [1:0] decode_state;
+    reg waiting_for_break_after_extended;
+    
+    always @(posedge clk) begin
+        if (reset) begin
+            decode_state <= WAIT_CODE;
+            waiting_for_break_after_extended <= 0;
+            left_arrow <= 0;
+            right_arrow <= 0;
+        end
+        else if (ps2_valid) begin
+            case (decode_state)
+                WAIT_CODE: begin
+                    if (ps2_data == EXTENDED_CODE) begin
+                        decode_state <= WAIT_EXTENDED;
+                    end
+                    else if (ps2_data == BREAK_CODE) begin
+                        decode_state <= WAIT_BREAK;
+                    end
+                end
+                WAIT_EXTENDED: begin
+                    if (ps2_data == BREAK_CODE) begin
+                        waiting_for_break_after_extended <= 1;
+                        decode_state <= WAIT_BREAK;
+                    end
+                    else if (ps2_data == LEFT_ARROW_CODE) begin
+                        left_arrow <= 1;
+                        decode_state <= WAIT_CODE;
+                    end
+                    else if (ps2_data == RIGHT_ARROW_CODE) begin
+                        right_arrow <= 1;
+                        decode_state <= WAIT_CODE;
+                    end
+                    else begin
+                        decode_state <= WAIT_CODE;
+                    end
+                end
+                WAIT_BREAK: begin
+                    if (waiting_for_break_after_extended) begin
+                        if (ps2_data == LEFT_ARROW_CODE) begin
+                            left_arrow <= 0;
+                        end
+                        else if (ps2_data == RIGHT_ARROW_CODE) begin
+                            right_arrow <= 0;
+                        end
+                        waiting_for_break_after_extended <= 0;
+                    end
+                    decode_state <= WAIT_CODE;
+                end
+                default: decode_state <= WAIT_CODE;
+            endcase
+        end
+    end
+
+endmodule
+
+
+// ============================================================================
+// SYNC
+// ============================================================================
+module sync(D, Resetn, Clock, Q);
+    input wire D;
+    input wire Resetn, Clock;
+    output reg Q;
+    reg Qi;
+
+    always @(posedge Clock) begin
+        if (Resetn == 0) begin
+            Qi <= 1'b0;
+            Q <= 1'b0;
+        end
+        else begin
+            Qi <= D;
+            Q <= Qi;
+        end
+    end
+endmodule

@@ -1,0 +1,41 @@
+`default_nettype none
+/*
+ * GAME_OVER_HANDLER.V
+ * 
+ * Manages player lives and sets game_over flag when all lives are lost.
+ * Player starts with 3 lives, loses one per collision.
+ */
+module game_over_handler(
+    input wire Resetn,
+    input wire Clock,
+    input wire collision,
+    output reg game_over,
+    output reg [2:0] lives  // 3-bit output for LEDs [9:7]
+);
+
+//before
+/*module game_over_handler(
+    input wire Resetn,
+    input wire Clock,
+    input wire collision,
+    output reg game_over
+);
+*/
+
+    reg [1:0] collision_count;  // Counts collisions (0-3)
+    reg collision_prev;         // To detect collision edge (rising edge)
+
+    always @(posedge Clock) begin
+        if (!Resetn) begin
+            game_over <= 0;
+            collision_count <= 0;
+            lives <= 3'b111;        // All 3 lives active (LEDs on)
+            collision_prev <= 0;
+        end
+        else begin
+            // Detect RISING EDGE of collision (new collision event)
+            if (collision && !collision_prev) begin
+                collision_count <= collision_count + 1;
+                
+                // Turn off one LED per collision
+                case (collision_count)

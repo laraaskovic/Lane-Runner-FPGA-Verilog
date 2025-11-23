@@ -1,0 +1,88 @@
+
+State Machine - |lane_runner_top|multi_obstacle:OBSTACLES|current_obs
+Name current_obs.011 current_obs.010 current_obs.001 current_obs.000 current_obs.100 
+current_obs.000 0 0 0 0 0 
+current_obs.001 0 0 1 1 0 
+current_obs.010 0 1 0 1 0 
+current_obs.011 1 0 0 1 0 
+current_obs.100 0 0 0 1 1 
+
+State Machine - |lane_runner_top|multi_obstacle:OBSTACLES|state
+Name state.DRAW_OBS state.MOVE_OBS state.ERASE_OBS state.IDLE state.CHECK_COLLISION 
+state.IDLE 0 0 0 0 0 
+state.ERASE_OBS 0 0 1 1 0 
+state.MOVE_OBS 0 1 0 1 0 
+state.DRAW_OBS 1 0 0 1 0 
+state.CHECK_COLLISION 0 0 0 1 1 
+
+State Machine - |lane_runner_top|player_object:PLAYER|next_state_after_draw
+Name 
+next_state_after_draw.IDLE 
+
+State Machine - |lane_runner_top|player_object:PLAYER|state
+Name state.COLLISION_REDRAW state.DRAW state.ERASE state.IDLE state.DRAW_INITIAL state.INIT 
+state.INIT 0 0 0 0 0 0 
+state.DRAW_INITIAL 0 0 0 0 1 1 
+state.IDLE 0 0 0 1 0 1 
+state.ERASE 0 0 1 0 0 1 
+state.DRAW 0 1 0 0 0 1 
+state.COLLISION_REDRAW 1 0 0 0 0 1 
+
+State Machine - |lane_runner_top|screen_eraser:ERASER|state
+Name state.IDLE state.DONE state.ERASING 
+state.IDLE 0 0 0 
+state.ERASING 1 0 1 
+state.DONE 1 1 0 
+
+State Machine - |lane_runner_top|keyboard_decoder:KB_DEC|decode_state
+Name decode_state.WAIT_CODE decode_state.WAIT_BREAK decode_state.WAIT_EXTENDED 
+decode_state.WAIT_CODE 0 0 0 
+decode_state.WAIT_EXTENDED 1 0 1 
+decode_state.WAIT_BREAK 1 1 0 
+
+State Machine - |lane_runner_top|PS2_Controller:PS2|s_ps2_transceiver
+Name s_ps2_transceiver.PS2_STATE_3_END_TRANSFER s_ps2_transceiver.PS2_STATE_2_COMMAND_OUT s_ps2_transceiver.PS2_STATE_1_DATA_IN s_ps2_transceiver.PS2_STATE_0_IDLE s_ps2_transceiver.PS2_STATE_4_END_DELAYED 
+s_ps2_transceiver.PS2_STATE_0_IDLE 0 0 0 0 0 
+s_ps2_transceiver.PS2_STATE_1_DATA_IN 0 0 1 1 0 
+s_ps2_transceiver.PS2_STATE_2_COMMAND_OUT 0 1 0 1 0 
+s_ps2_transceiver.PS2_STATE_3_END_TRANSFER 1 0 0 1 0 
+s_ps2_transceiver.PS2_STATE_4_END_DELAYED 0 0 0 1 1 
+
+State Machine - |lane_runner_top|PS2_Controller:PS2|Altera_UP_PS2_Command_Out:PS2_Command_Out|s_ps2_transmitter
+Name s_ps2_transmitter.PS2_STATE_7_TRANSMISSION_ERROR s_ps2_transmitter.PS2_STATE_6_COMMAND_WAS_SENT s_ps2_transmitter.PS2_STATE_5_RECEIVE_ACK_BIT s_ps2_transmitter.PS2_STATE_4_TRANSMIT_STOP_BIT s_ps2_transmitter.PS2_STATE_3_TRANSMIT_DATA s_ps2_transmitter.PS2_STATE_2_WAIT_FOR_CLOCK s_ps2_transmitter.PS2_STATE_1_INITIATE_COMMUNICATION s_ps2_transmitter.PS2_STATE_0_IDLE 
+s_ps2_transmitter.PS2_STATE_0_IDLE 0 0 0 0 0 0 0 0 
+s_ps2_transmitter.PS2_STATE_1_INITIATE_COMMUNICATION 0 0 0 0 0 0 1 1 
+s_ps2_transmitter.PS2_STATE_2_WAIT_FOR_CLOCK 0 0 0 0 0 1 0 1 
+s_ps2_transmitter.PS2_STATE_3_TRANSMIT_DATA 0 0 0 0 1 0 0 1 
+s_ps2_transmitter.PS2_STATE_4_TRANSMIT_STOP_BIT 0 0 0 1 0 0 0 1 
+s_ps2_transmitter.PS2_STATE_5_RECEIVE_ACK_BIT 0 0 1 0 0 0 0 1 
+s_ps2_transmitter.PS2_STATE_6_COMMAND_WAS_SENT 0 1 0 0 0 0 0 1 
+s_ps2_transmitter.PS2_STATE_7_TRANSMISSION_ERROR 1 0 0 0 0 0 0 1 
+
+State Machine - |lane_runner_top|PS2_Controller:PS2|Altera_UP_PS2_Data_In:PS2_Data_In|s_ps2_receiver
+Name s_ps2_receiver.PS2_STATE_3_PARITY_IN s_ps2_receiver.PS2_STATE_2_DATA_IN s_ps2_receiver.PS2_STATE_1_WAIT_FOR_DATA s_ps2_receiver.PS2_STATE_0_IDLE s_ps2_receiver.PS2_STATE_4_STOP_IN 
+s_ps2_receiver.PS2_STATE_0_IDLE 0 0 0 0 0 
+s_ps2_receiver.PS2_STATE_1_WAIT_FOR_DATA 0 0 1 1 0 
+s_ps2_receiver.PS2_STATE_2_DATA_IN 0 1 0 1 0 
+s_ps2_receiver.PS2_STATE_3_PARITY_IN 1 0 0 1 0 
+s_ps2_receiver.PS2_STATE_4_STOP_IN 0 0 0 1 1 
+
+State Machine - |lane_runner_top|win_screen:WIN|state
+Name state.IDLE state.DONE state.DRAWING 
+state.IDLE 0 0 0 
+state.DRAWING 1 0 1 
+state.DONE 1 1 0 
+
+State Machine - |lane_runner_top|lose_screen:LOSE|state
+Name state.IDLE state.DONE state.DRAWING 
+state.IDLE 0 0 0 
+state.DRAWING 1 0 1 
+state.DONE 1 1 0 
+
+State Machine - |lane_runner_top|title_screen:TITLE|state
+Name state.ERASE_TITLE state.WAIT_START state.DRAW_TITLE state.IDLE state.DONE 
+state.IDLE 0 0 0 0 0 
+state.DRAW_TITLE 0 0 1 1 0 
+state.WAIT_START 0 1 0 1 0 
+state.ERASE_TITLE 1 0 0 1 0 
+state.DONE 0 0 0 1 1 

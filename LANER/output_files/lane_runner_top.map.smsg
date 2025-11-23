@@ -1,0 +1,3 @@
+Info (10281): Verilog HDL Declaration information at screen_eraser.v(32): object "LANE_START_X" differs only in case from object "lane_start_x" in the same scope File: W:/LANER/screen_eraser.v Line: 32
+Info (10281): Verilog HDL Declaration information at lane_runner_top.v(55): object "game_over" differs only in case from object "GAME_OVER" in the same scope File: W:/LANER/lane_runner_top.v Line: 55
+Info (10281): Verilog HDL Declaration information at lane_runner_top.v(61): object "score" differs only in case from object "SCORE" in the same scope File: W:/LANER/lane_runner_top.v Line: 61

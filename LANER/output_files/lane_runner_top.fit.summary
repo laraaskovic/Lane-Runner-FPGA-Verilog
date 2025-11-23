@@ -1,0 +1,20 @@
+Fitter Status : Successful - Sun Nov 23 12:10:23 2025
+Quartus Prime Version : 23.1std.0 Build 991 11/28/2023 SC Lite Edition
+Revision Name : lane_runner_top
+Top-level Entity Name : lane_runner_top
+Family : Cyclone V
+Device : 5CSEMA5F31C6
+Timing Models : Final
+Logic utilization (in ALMs) : 1,038 / 32,070 ( 3 % )
+Total registers : 730
+Total pins : 84 / 457 ( 18 % )
+Total virtual pins : 0
+Total block memory bits : 2,959,200 / 4,065,280 ( 73 % )
+Total RAM Blocks : 365 / 397 ( 92 % )
+Total DSP Blocks : 3 / 87 ( 3 % )
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 1 / 6 ( 17 % )
+Total DLLs : 0 / 4 ( 0 % )
